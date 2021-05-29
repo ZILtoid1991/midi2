@@ -1,0 +1,5 @@
+name "midi2"
+description "MIDI 2.0 structs, interfaces, etc."
+authors "laszl"
+copyright "Copyright © 2021, laszl"
+license "BSL 1.0"
