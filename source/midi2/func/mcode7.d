@@ -27,6 +27,7 @@ enum MCoded7Status {
  */
 struct MCoded7Encoder {
 	size_t		counter;	///The amount of encoded data.
+	size_t		outCount;	///The amount of outputted data.
 	ubyte[8]	currOut;	///The currently outputted data.
 	ubyte[7]	currIn;		///The currently inputted data.
 	ubyte		flags;		///Status flags. Bit 7 is set if finalization is complete, bit 6 is set if there's remainder data, bits 0-2 indicate remainder of the currently outputted chunk.
@@ -38,6 +39,8 @@ struct MCoded7Encoder {
 	} else {
 		const(ubyte)[]	input;	///The input stream
 		ubyte[]			output;	///The output stream
+		size_t			inPos;	///Input position
+		size_t			outPos;	///Output position
 	}
 	@nogc @safe pure nothrow {
 		version (midi2_nogc) {
@@ -53,64 +56,42 @@ struct MCoded7Encoder {
 			/**
 			 * Encodes all possible data on the input stream without needing to pad out the end
 			 */
-			MCoded7Status encode() {
-				if (flags & 0x07) {
-					for (int i = flags & 0x07 ; i < 8 ; i++) {
-						if (!outSize) {
-							flags = cast(ubyte)(flags & 0xB0 | i);
-							return MCoded7Status.NeedsMoreOutput;
-						}
-						*output = currOut[i];
-						outSize--;
-						output++;
-					}
+			MCoded7Status encode() @trusted {
+				if (outCount % 8) {		//empty output if needed
+					if (emptyOutputChunk())
+						return MCoded7Status.NeedsMoreOutput;
 				}
 				if (!flags & 0x80) {
 					while (inSize) {
-						if (fillInputChunk) {
-							flags |= 0x40;
+						if (fillInputChunk())
 							return MCoded7Status.AllInputConsumed;
-						}
-						encodeChunk;
-						for (int i ; i < 8 ; i++) {
-							if (!outSize) {
-								flags = cast(ubyte)(flags & 0xB0 | i);
-								return MCoded7Status.NeedsMoreOutput;
-							}
-							*output = currOut[i];
-							outSize--;
-							output++;
-						}
+						encodeChunk();
+						if (emptyOutputChunk())
+							return MCoded7Status.NeedsMoreOutput;
 					}
+					return MCoded7Status.AllInputConsumed;
 				} else return MCoded7Status.AlreadyFinalized;
 			}
 			/**
 			 * Finalizes the stream once no more output is needed to be put onto the stream.
 			 * Consumes the remaining data on the input if any, then pads the end if needed.
 			 */
-			MCoded7Status finalize() {
+			MCoded7Status finalize() @trusted {
 				if (!flags & 0x80) return MCoded7Status.AlreadyFinalized;
 				MCoded7Status state = encode();
 				if (state == MCoded7Status.NeedsMoreOutput)
 					return state;
-				if (flags & 0x40) {
-					for (int i = flags & 0x07 ; i < 8 ; i++) {
-						if (!outSize) {
-							flags = cast(ubyte)(flags & 0xB0 | i);
-							return MCoded7Status.NeedsMoreOutput;
-						}
-						*output = currOut[i];
-						outSize--;
-						output++;
-					}
-				}
+				encodeChunk();
+				if (emptyOutputChunk())
+					return MCoded7Status.NeedsMoreOutput;
+				flags |= 0x80;
 				return MCoded7Status.Finished;
 			}
 			/**
 			 * Fills the current input chunk from the input stream and raises the counter by the amount.
-			 * Returns 0 if the 
+			 * Returns 0 if the chunk is completed. Returns 1-6 if the input chunk isn't complete.
 			 */
-			protected size_t fillInputChunk() {
+			protected size_t fillInputChunk() @system {
 				do {
 					if (!inSize) return counter % 7;
 					currIn[counter % 7] = *input;
@@ -118,6 +99,20 @@ struct MCoded7Encoder {
 					input++;
 					counter++;
 				} while (counter % 7);
+				return 0;
+			}
+			/**
+			 * Empties the current output chunk to the output stream, and raises the output counter by the amount.
+			 * Returns 0 if the chunk is completed. Returns 1-7 if the chunk isn't complete.
+			 */
+			protected size_t emptyOutputChunk() @system {
+				do {
+					if (!outSize) return outCount % 8;
+					*output = currOut[outCount % 8];
+					outSize--;
+					output++;
+					outCount++;
+				} while (outCount % 8);
 				return 0;
 			}
 		} else {
@@ -139,5 +134,70 @@ struct MCoded7Encoder {
 			}
 		}
 	}
-	
+	version (midis_nogc) {
+
+	} else {
+		@safe pure nothrow {
+			/**
+			 * Fills the current input chunk from the input stream and raises the counter by the amount.
+			 * Returns 0 if the chunk is completed. Returns 1-6 if the input chunk isn't complete.
+			 */
+			protected size_t fillInputChunk() {
+				do {
+					if (input.length == inPos) return counter % 7;
+					currIn[counter % 7] = input[inPos];
+					inPos++;
+					counter++;
+				} while (counter % 7);
+				return 0;
+			}
+			/**
+			 * Empties the current output chunk to the output stream, and raises the output counter by the amount.
+			 * Returns 0 if the chunk is completed. Returns 1-7 if the chunk isn't complete.
+			 */
+			protected size_t emptyOutputChunk() {
+				do {
+					if (output.length == outPos) return outCount % 8;
+					output[outPos] = currOut[outCount % 8];
+					outPos++;
+					outCount++;
+				} while (outCount % 8);
+				return 0;
+			}
+			/**
+			 * Encodes all possible data on the input stream without needing to pad out the end
+			 */
+			MCoded7Status encode() {
+				if (outCount % 8) {		//empty output if needed
+					if (emptyOutputChunk())
+						return MCoded7Status.NeedsMoreOutput;
+				}
+				if (!flags & 0x80) {
+					while (input.length != inPos) {
+						if (fillInputChunk())
+							return MCoded7Status.AllInputConsumed;
+						encodeChunk();
+						if (emptyOutputChunk())
+							return MCoded7Status.NeedsMoreOutput;
+					}
+					return MCoded7Status.AllInputConsumed;
+				} else return MCoded7Status.AlreadyFinalized;
+			}
+			/**
+			 * Finalizes the stream once no more output is needed to be put onto the stream.
+			 * Consumes the remaining data on the input if any, then pads the end if needed.
+			 */
+			MCoded7Status finalize() {
+				if (!flags & 0x80) return MCoded7Status.AlreadyFinalized;
+				MCoded7Status state = encode();
+				if (state == MCoded7Status.NeedsMoreOutput)
+					return state;
+				encodeChunk();
+				if (emptyOutputChunk())
+					return MCoded7Status.NeedsMoreOutput;
+				flags |= 0x80;
+				return MCoded7Status.Finished;
+			}
+		}
+	}
 }
