@@ -30,7 +30,7 @@ struct MCoded7Encoder {
 	size_t		outCount;	///The amount of outputted data.
 	ubyte[8]	currOut;	///The currently outputted data.
 	ubyte[7]	currIn;		///The currently inputted data.
-	ubyte		flags;		///Status flags. Bit 7 is set if finalization is complete, bit 6 is set if there's remainder data, bits 0-2 indicate remainder of the currently outputted chunk.
+	ubyte		flags;		///Status flags. Bit 7 is set if finalization is complete
 	version (midi2_nogc) {
 		size_t			inSize;	///The remaining data in the input stream
 		const(ubyte)*	input;	///The pointer to the current byte in the input stream
@@ -109,6 +109,7 @@ struct MCoded7Encoder {
 				do {
 					if (!outSize) return outCount % 8;
 					*output = currOut[outCount % 8];
+					currOut[outCount % 8] = 0;
 					outSize--;
 					output++;
 					outCount++;
@@ -199,5 +200,28 @@ struct MCoded7Encoder {
 				return MCoded7Status.Finished;
 			}
 		}
+	}
+}
+/**
+ * Mcoded7 decode.
+ *
+ * Uses either a classical length-pointer pair for nogc targets, or D's own dynamic arrays for gc targets.
+ */
+struct MCoded7Decoder {
+	size_t		counter;	///The amount of encoded data.
+	size_t		outCount;	///The amount of outputted data.
+	ubyte[8]	currIn;	///The currently outputted data.
+	ubyte[7]	currOut;		///The currently inputted data.
+	ubyte		flags;		///Status flags. Bit 7 is set if finalization is complete
+	version (midi2_nogc) {
+		size_t			inSize;	///The remaining data in the input stream
+		const(ubyte)*	input;	///The pointer to the current byte in the input stream
+		size_t			outSize;///The remaining data in the output stream
+		ubyte*			output;	///The pointer to the current first byte in the output stream
+	} else {
+		const(ubyte)[]	input;	///The input stream
+		ubyte[]			output;	///The output stream
+		size_t			inPos;	///Input position
+		size_t			outPos;	///Output position
 	}
 }
