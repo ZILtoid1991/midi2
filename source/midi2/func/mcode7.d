@@ -91,7 +91,8 @@ struct MCoded7Encoder {
 			 * Fills the current input chunk from the input stream and raises the counter by the amount.
 			 * Returns 0 if the chunk is completed. Returns 1-6 if the input chunk isn't complete.
 			 */
-			protected size_t fillInputChunk() @system {
+			protected int fillInputChunk() @system {
+			    if (!inSize) return -1;
 				do {
 					if (!inSize) return counter % 7;
 					currIn[counter % 7] = *input;
@@ -105,7 +106,8 @@ struct MCoded7Encoder {
 			 * Empties the current output chunk to the output stream, and raises the output counter by the amount.
 			 * Returns 0 if the chunk is completed. Returns 1-7 if the chunk isn't complete.
 			 */
-			protected size_t emptyOutputChunk() @system {
+			protected int emptyOutputChunk() @system {
+			    if (!outSize) return -1;
 				do {
 					if (!outSize) return outCount % 8;
 					*output = currOut[outCount % 8];
@@ -135,7 +137,7 @@ struct MCoded7Encoder {
 			}
 		}
 	}
-	version (midis_nogc) {
+	version (midi2_nogc) {
 
 	} else {
 		@safe pure nothrow {
@@ -223,5 +225,56 @@ struct MCoded7Decoder {
 		ubyte[]			output;	///The output stream
 		size_t			inPos;	///Input position
 		size_t			outPos;	///Output position
+	}
+	version (midi2_nogc) {
+	    @nogc @safe pure nothrow{
+	        /**
+	         * Creates a standard decoder with the supplied streams.
+	         */
+	        this (size_t inSize, const(ubyte)* input, size_t outSize, ubyte* output) {
+	            this.inSize = inSize;
+	            this.Input = Input;
+	            this.outSize = outSize;
+	            this.output = output;
+	        }
+	        /**
+	         * Fills input chunk.
+	         * Returns the amount that is missing from the input, -1 if there's none on
+	         * the input stream, 0 if everything went alright.
+	         */
+	        int fillInputChunk () {
+	            if (!inSize) return -1;
+	            do {
+	                if (!inSize) return counter % 8;
+	                currIn[counter % 8] = *input;
+	                input++;
+	                inSize--;
+	                counter++;
+	            } while (counter % 8);
+	            return 0;
+	        }
+	        
+	    }
+	} else {
+	    @nogc @safe pure nothrow {
+	        /**
+	         * Creates a standard decoder with the supplied streams.
+	         */
+	        this (const(ubyte)[] input, ubyte[] output) {
+	            this.input = input;
+	            this.output = output;
+	        }
+	    }
+	}
+	@nogc @safe pure nothrow {
+	    /**
+	     * Decodes an Mcoded7 chunk.
+	     */
+	    void decodeChunk() {
+	        for (int i ; i < 7 ; i++) {
+	            currOut[i] = cast(ubyte)((currIn[0] << (1 + i) & 0x80) | currIn[i + 1]);
+	        }
+	    }
+
 	}
 }
