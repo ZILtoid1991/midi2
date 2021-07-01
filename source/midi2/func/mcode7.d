@@ -472,6 +472,19 @@ version (midi2_nogc) {
 	}
 } else {
 	unittest {
-
+		import std.stdio;
+		const(char)[] input = "this is a test!";
+		char[] output;
+		ubyte[] encoded;
+		encoded.length = 16;
+		output.length = input.length;
+		MCoded7Encoder encoder = MCoded7Encoder(cast(const(ubyte)[])input, encoded);
+		MCoded7Status status = encoder.finalize;
+		assert(status == MCoded7Status.Finished);
+		writeln(cast(char[])encoded);
+		MCoded7Decoder decoder = MCoded7Decoder(cast(const(ubyte)[])encoded, cast(ubyte[])output);
+		status = decoder.finalize;
+		assert(status == MCoded7Status.Finished);
+		assert(input == output, output);
 	}
 }
