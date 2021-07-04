@@ -67,7 +67,7 @@ struct MCoded7Encoder {
 					if (emptyOutputChunk())
 						return MCoded7Status.NeedsMoreOutput;
 				}
-				if (!flags & 0x80) {
+				if (!(flags & 0x80)) {
 					while (inSize) {
 						if (fillInputChunk())
 							return MCoded7Status.AllInputConsumed;
@@ -83,7 +83,7 @@ struct MCoded7Encoder {
 			 * Consumes the remaining data on the input if any, then pads the end if needed.
 			 */
 			MCoded7Status finalize() @trusted {
-				if (!flags & 0x80) return MCoded7Status.AlreadyFinalized;
+				if (flags & 0x80) return MCoded7Status.AlreadyFinalized;
 				//Encode everything if it still haven't been
 				const MCoded7Status state = encode();
 				//At this point, the output must have enough space to accomodate an extra chunk. If not, then error 
@@ -135,7 +135,7 @@ struct MCoded7Encoder {
 				do {
 					if (!outSize) return outCount % 8;
 					*output = currOut[outCount % 8];
-					currOut[outCount % 8] = 0;
+					currOut[outCount % 8] = 0x0;
 					outSize--;
 					output++;
 					outCount++;
@@ -160,14 +160,12 @@ struct MCoded7Encoder {
 					if (emptyOutputChunk())
 						return MCoded7Status.NeedsMoreOutput;
 				}
-				if (!flags & 0x80) {
-					while (input.length != inPos) {
-						if (fillInputChunk())
-							return MCoded7Status.AllInputConsumed;
-						encodeChunk();
-						if (emptyOutputChunk())
-							return MCoded7Status.NeedsMoreOutput;
-					}
+				if (!(flags & 0x80)) {
+					if (fillInputChunk())
+						return MCoded7Status.AllInputConsumed;
+					encodeChunk();
+					if (emptyOutputChunk())
+						return MCoded7Status.NeedsMoreOutput;
 					return MCoded7Status.AllInputConsumed;
 				} else return MCoded7Status.AlreadyFinalized;
 			}
@@ -176,7 +174,7 @@ struct MCoded7Encoder {
 			 * Consumes the remaining data on the input if any, then pads the end if needed.
 			 */
 			MCoded7Status finalize() {
-				if (!flags & 0x80) return MCoded7Status.AlreadyFinalized;
+				if (flags & 0x80) return MCoded7Status.AlreadyFinalized;
 				//Encode everything if it still haven't been
 				const MCoded7Status state = encode();
 				//At this point, the output must have enough space to accomodate an extra chunk. If not, then error 
@@ -209,6 +207,7 @@ struct MCoded7Encoder {
 			 * there's no input left
 			 */
 			protected int fillInputChunk() {
+				if (input.length == inPos) return -1;
 				do {
 					if (input.length == inPos) return counter % 7;
 					currIn[counter % 7] = input[inPos];
@@ -225,6 +224,7 @@ struct MCoded7Encoder {
 				do {
 					if (output.length == outPos) return outCount % 8;
 					output[outPos] = currOut[outCount % 8];
+					
 					outPos++;
 					outCount++;
 				} while (outCount % 8);
@@ -285,7 +285,7 @@ struct MCoded7Decoder {
 					if (emptyOutputChunk())
 						return MCoded7Status.NeedsMoreOutput;
 				}
-				if (!flags & 0x80) {
+				if (!(flags & 0x80)) {
 					while (inSize) {
 						if (fillInputChunk())
 							return MCoded7Status.AllInputConsumed;
@@ -355,6 +355,7 @@ struct MCoded7Decoder {
 				do {
 					if (!outSize) return outCount % 7;
 					*output = currOut[counter % 7];
+					
 					output++;
 					outSize--;
 					outCount++;
@@ -379,7 +380,7 @@ struct MCoded7Decoder {
 					if (emptyOutputChunk())
 						return MCoded7Status.NeedsMoreOutput;
 				}
-				if (!flags & 0x80) {
+				if (!(flags & 0x80)) {
 					while (input.length < inPos) {
 						if (fillInputChunk())
 							return MCoded7Status.AllInputConsumed;
@@ -431,6 +432,7 @@ struct MCoded7Decoder {
 				do {
 					if (output.length == outPos) return outCount % 7;
 					output[outPos] = currOut[outCount % 7];
+					
 					outPos++;
 					outCount++;
 				} while (outCount % 7);
@@ -473,15 +475,17 @@ version (midi2_nogc) {
 } else {
 	unittest {
 		import std.stdio;
+		import std.conv : to;
 		const(char)[] input = "this is a test!";
 		char[] output;
 		ubyte[] encoded;
 		encoded.length = 16;
 		output.length = input.length;
 		MCoded7Encoder encoder = MCoded7Encoder(cast(const(ubyte)[])input, encoded);
+		//encoder.encode;
 		MCoded7Status status = encoder.finalize;
-		assert(status == MCoded7Status.Finished);
-		writeln(cast(char[])encoded);
+		assert(status == MCoded7Status.Finished, to!string(status));
+		writeln(encoded);
 		MCoded7Decoder decoder = MCoded7Decoder(cast(const(ubyte)[])encoded, cast(ubyte[])output);
 		status = decoder.finalize;
 		assert(status == MCoded7Status.Finished);
