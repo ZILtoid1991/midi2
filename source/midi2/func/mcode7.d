@@ -21,12 +21,70 @@ module midi2.func.mcode7;
  * Mcoded7 coder status return codes.
  */
 enum MCoded7Status {
-	AllInputConsumed,
-	NeedsMoreOutput,
-	AlreadyFinalized,
 	Finished,
+	OutputTooSmall,
+	BuffersUnaligned
 }
-/**
+version (midi2_betterc) {
+
+} else {
+	/**
+	 * MCoded7 encoder function.
+	 * 
+	 * For algorithm simplicity, it needs a pre-allocated output, and aligned buffers.
+	 */
+	MCoded7Status encodeStream(const(ubyte)[] input, ubyte[] output) @safe pure nothrow {
+		void encodeChunk(const(ubyte)[] currIn, ubyte[] currOut) @nogc @safe pure nothrow {
+			for (int i ; i < 7 ; i++) {
+				currOut[i + 1] = currIn[i] & 0x7F;
+				currOut[0] |= (currIn[i] & 0x80)>>(i + 1);
+			}
+		}
+		//Assert that the buffers are unaligned
+		if (output.length % 8 != 0 && input.length % 7) return MCoded7Status.BuffersUnaligned;
+		//Assert that there will be enough space in the output buffer
+		if (output.length < input.length + input.length / 7) return MCoded7Status.OutputTooSmall;
+		for (int i, j ; i < input.length ; i+=7, j+=8) {
+			encodeChunk(input[i..i+7], output[j..j+8]);
+		}
+		return MCoded7Status.Finished;
+	}
+	/**
+	 * MCoded7 decoder function.
+	 *
+	 * For algorithm simplicity, it needs a pre-allocated output, and aligned buffers.
+	 */
+	MCoded7Status decodeStream(const(ubyte)[] input, ubyte[] output) @safe pure nothrow {
+		void decodeChunk(const(ubyte)[] currIn, ubyte[] currOut) @nogc @safe pure nothrow {
+			for (int i ; i < 7 ; i++) {
+				currOut[i] = cast(ubyte)((currIn[0] << (1 + i) & 0x80) | currIn[i + 1]);
+			}
+		}
+		//Assert that the buffers are unaligned
+		if (output.length % 7 != 0 && input.length % 8) return MCoded7Status.BuffersUnaligned;
+		//Assert that there will be enough space in the output buffer
+		if (output.length < input.length - input.length / 8) return MCoded7Status.OutputTooSmall;
+		for (int i, j ; i < input.length ; i+=8, j+=7) {
+			decodeChunk(input[i..i+8], output[j..j+7]);
+		}
+		return MCoded7Status.Finished;
+	}
+	unittest {
+		import std.conv : to;
+		const(char)[] input = "this is a test";
+		char[] output;
+		ubyte[] encoded;
+		encoded.length = 16;
+		output.length = 14;
+		MCoded7Status result = encodeStream(cast(const(ubyte)[])input, encoded);
+		assert (result == MCoded7Status.Finished, to!string(result));
+		result = decodeStream(cast(const(ubyte)[])encoded, cast(ubyte[])output);
+		assert (result == MCoded7Status.Finished, to!string(result));
+		assert (input == output, output);
+	}
+}
+
+/+/**
  * Mcoded7 encoder.
  *
  * Uses either a classical length-pointer pair for nogc targets, or D's own dynamic arrays for gc targets.
@@ -491,4 +549,4 @@ version (midi2_nogc) {
 		assert(status == MCoded7Status.Finished);
 		assert(input == output, output);
 	}
-}
+}+/

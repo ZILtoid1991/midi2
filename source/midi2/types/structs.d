@@ -39,8 +39,8 @@ struct UMP {
 		this(ubyte group, ubyte channel, ushort val) {
 			bytes[0] = (MessageType.MIDI1<<4) | (group & 0xF);
 			bytes[1] = (MIDI1_0Cmd.PitchBend<<4) | (channel & 0xF);
-			bytes[2] = cast(ubyte)((val>>7)&0x7F);
-			bytes[3] = cast(ubyte)(val&0x7F);
+			bytes[3] = cast(ubyte)((val>>7)&0x7F);
+			bytes[2] = cast(ubyte)(val&0x7F);
 		}
 		/**
 		 * Returns the message type of the packet.
@@ -107,7 +107,7 @@ struct UMP {
 		 * Returns the pitch bend value of this packet.
 		 */
 		ushort bend() const {
-			return (cast(ushort)bytes[2])<<7 | bytes[3];
+			return (cast(ushort)bytes[3])<<7 | bytes[2];
 		}
 	}
 }
