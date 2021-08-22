@@ -109,6 +109,20 @@ struct UMP {
 		ushort bend() const {
 			return (cast(ushort)bytes[3])<<7 | bytes[2];
 		}
+		/**
+		 * Return the channel number of this packet.
+		 */
+		ubyte channel() const {
+			return bytes[1] & 0xF;
+		}
+		/**
+		 * Sets the channel number of this packet.
+		 */
+		ubyte channel(ubyte val) {
+			bytes[1] &= 0xF0;
+			bytes[1] |= val & 0xF;
+			return bytes[1] & 0xF;
+		}
 	}
 }
 /**
