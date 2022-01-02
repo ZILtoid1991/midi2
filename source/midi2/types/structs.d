@@ -69,11 +69,10 @@ struct UMP {
 		 */
 		ubyte status() const {
 			switch (msgType) {
-				case MessageType.SysCommMsg, MessageType.MIDI2:
-					return bytes[1];
-				case MessageType.Utility:
+				case MessageType.MIDI2 , MessageType.MIDI1 , MessageType.Data64 , MessageType.Data128:
 					return bytes[1]>>4;
-				default: return 0;
+				default:
+					return bytes[1];
 			}
 		}
 		/**
@@ -137,4 +136,12 @@ struct NoteVals {
 unittest {
 	assert(UMP.sizeof == 4);
 	assert(NoteVals.sizeof == 4);
+	
+	UMP a = UMP(MessageType.MIDI2, 0x5, MIDI2_0Cmd.NoteOn, 0x3, 0x84, 0x35);
+	assert(a.msgType == MessageType.MIDI2);
+	assert(a.group == 0x5);
+	assert(a.status == MIDI2_0Cmd.NoteOn);
+	assert(a.channel == 0x3);
+	assert(a.note == 0x84);
+	assert(a.value == 0x35);
 }

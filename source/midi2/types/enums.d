@@ -86,6 +86,21 @@ enum UtilityMsgSt : ubyte {
 	JRClock		=	0x1,	///Jitter reduction clock
 	JRTimestamp	=	0x2,	///Jitter reduction timestamp
 }
+/** 
+ * System common message codes.
+ */
+enum SysCommMsg : ubyte {
+	MIDITimeCode		=	0xF1,
+	SongPosMarker		=	0xF2,	///Song position marker
+	SongSelect			=	0xF3,
+	TuneReq				=	0xF6,	///Tune request
+	TimingClk			=	0xF8,	///Timing clock
+	Start				=	0xFA,
+	Continue			=	0xFB,
+	Stop				=	0xFC,
+	ActSens				=	0xFE,	///Active sensing
+	Reset				=	0xFF,
+}
 
 /**
  * Contains Universal MIDI Packet (UMP) sizes in bits.
