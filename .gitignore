@@ -13,6 +13,7 @@
 
 # Executables
 *.exe
+*.pdb
 
 # DUB
 .dub
@@ -22,3 +23,5 @@ docs/
 
 # Code coverage
 *.lst
+
+.history
